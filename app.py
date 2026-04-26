@@ -11,6 +11,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import ta
 from datetime import datetime
+import pytz
+TR = pytz.timezone("Europe/Istanbul")
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -337,7 +339,7 @@ with st.sidebar:
     st.markdown("---")
     if st.button("🔄 Yenile",use_container_width=True):st.cache_data.clear();st.rerun()
     st.warning("⏱ 15dk gecikmeli")
-    st.info(f"🕐 {datetime.now().strftime('%H:%M:%S')}")
+    st.info(f"🕐 {datetime.now(TR).strftime('%H:%M:%S')}")
 
 # ─── VERİ ────────────────────────────────────────────────────────────────────
 st.markdown(f"# 📊 {secilenKod} — {HISSELER[secilenKod]['isim']}")
@@ -571,4 +573,4 @@ with tab5:
     """)
 
 st.markdown("---")
-st.markdown(f"<div style='text-align:center;color:#244060;font-size:11px'>📊 BIST PRO Trader v2.0 · Yahoo Finance 15dk gecikmeli · Yatırım tavsiyesi değildir · {datetime.now().strftime('%H:%M:%S')}</div>",unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:center;color:#244060;font-size:11px'>📊 BIST PRO Trader v2.0 · Yahoo Finance 15dk gecikmeli · Yatırım tavsiyesi değildir · {datetime.now(TR).strftime('%H:%M:%S')}</div>",unsafe_allow_html=True)
