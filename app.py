@@ -547,9 +547,9 @@ with st.sidebar:
     ])
     
     sermaye   = st.number_input("Başlangıç Sermayesi (₺)", 10000, 10000000, 100000, 10000)
-    komisyon  = st.slider("Komisyon (%)", 0.01, 0.5, 0.1, 0.01)
-    stop_loss = st.slider("Stop-Loss (%)", 2, 20, 8, 0.5)
-    take_profit = st.slider("Take-Profit (%)", 5, 50, 20, 1)
+    komisyon  = st.slider("Komisyon (%)", 0.01, 0.50, 0.10, 0.01)
+    stop_loss = st.slider("Stop-Loss (%)", 2.0, 20.0, 8.0, 0.5)
+    take_profit = st.slider("Take-Profit (%)", 5.0, 50.0, 20.0, 1.0)
     
     st.markdown("---")
     st.markdown("### ⏱ Veri Gecikmesi")
