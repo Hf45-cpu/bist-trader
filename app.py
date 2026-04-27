@@ -652,13 +652,127 @@ def sinyal_hesapla(df):
     }
 
 # ─── VERİ ÇEKME ───────────────────────────────────────────────────────────────
+
+# ─── BYF ÖZEL VERİ ÇEKME (Bigpara API) ──────────────────────────────────────
+BYF_KODLAR = {"ISGLK", "GMSTR", "GLDTR"}
+
+@st.cache_data(ttl=900)
+def byf_veri_cek(kod, period="6mo"):
+    """
+    BYF fonları için Bigpara üzerinden veri çeker.
+    ISGLK ve GMSTR Yahoo Finance'de desteklenmiyor,
+    Bigpara API üzerinden alınıyor.
+    """
+    import requests
+    from datetime import datetime, timedelta
+
+    # Bigpara hisse detay endpoint
+    proxies = [
+        f"https://corsproxy.io/?{requests.utils.quote('https://bigpara.hurriyet.com.tr/api/v1/borsa/hisseyuzeysel/' + kod)}",
+        f"https://api.allorigins.win/raw?url={requests.utils.quote('https://bigpara.hurriyet.com.tr/api/v1/borsa/hisseyuzeysel/' + kod)}",
+    ]
+
+    son_fiyat = None
+    degisim = None
+
+    for proxy_url in proxies:
+        try:
+            r = requests.get(proxy_url, timeout=8)
+            if r.status_code == 200:
+                data = r.json()
+                if data and "data" in data:
+                    d = data["data"]
+                    son_fiyat = float(str(d.get("kapanis") or d.get("son") or 0).replace(",","."))
+                    onceki = float(str(d.get("oncekiKapanis") or son_fiyat).replace(",","."))
+                    degisim = (son_fiyat - onceki) / onceki * 100 if onceki else 0
+                    break
+        except:
+            continue
+
+    # Tarihsel veri için Bigpara grafik endpoint
+    # Bugün ve 6 ay öncesi
+    bitis = datetime.now()
+    if period == "3mo":
+        baslangic = bitis - timedelta(days=90)
+    elif period == "6mo":
+        baslangic = bitis - timedelta(days=180)
+    elif period == "1y":
+        baslangic = bitis - timedelta(days=365)
+    else:
+        baslangic = bitis - timedelta(days=365)
+
+    tarih_fmt = lambda d: d.strftime("%d.%m.%Y")
+    hist_url = f"https://bigpara.hurriyet.com.tr/api/v1/hisse/graph/{kod}?start={tarih_fmt(baslangic)}&end={tarih_fmt(bitis)}"
+
+    tarihler = []
+    kapanislar = []
+    yuksekler = []
+    dusukler = []
+    acilislar = []
+    hacimler = []
+
+    for proxy_base in ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url="]:
+        try:
+            proxy_url = proxy_base + requests.utils.quote(hist_url)
+            r = requests.get(proxy_url, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                items = data.get("data", {}).get("hisseYuzeysel", {}).get("graphList", []) or data.get("data", [])
+                if items:
+                    for item in items:
+                        try:
+                            tarihler.append(item.get("tarih", ""))
+                            kapanislar.append(float(str(item.get("kapanis", 0)).replace(",",".")))
+                            yuksekler.append(float(str(item.get("yuksek", 0)).replace(",",".")))
+                            dusukler.append(float(str(item.get("dusuk", 0)).replace(",",".")))
+                            acilislar.append(float(str(item.get("acilis", 0)).replace(",",".")))
+                            hacimler.append(int(str(item.get("hacim", 0)).replace(",","")))
+                        except:
+                            pass
+                    break
+        except:
+            continue
+
+    if not kapanislar and son_fiyat:
+        # Tarihsel veri gelmedi ama anlık fiyat var — sentetik oluştur
+        kapanislar = [son_fiyat]
+        yuksekler = [son_fiyat * 1.01]
+        dusukler = [son_fiyat * 0.99]
+        acilislar = [son_fiyat]
+        hacimler = [0]
+        tarihler = [datetime.now().strftime("%d.%m.%Y")]
+
+    if not kapanislar:
+        return None, f"{kod} için Bigpara'dan veri alınamadı"
+
+    # DataFrame oluştur
+    idx = pd.date_range(end=pd.Timestamp.now(), periods=len(kapanislar), freq="B")
+    df = pd.DataFrame({
+        "open":   acilislar if acilislar else kapanislar,
+        "high":   yuksekler if yuksekler else kapanislar,
+        "low":    dusukler if dusukler else kapanislar,
+        "close":  kapanislar,
+        "volume": hacimler if hacimler else [0]*len(kapanislar),
+    }, index=idx)
+
+    df = df[df["close"] > 0].copy()
+    return df, None
+
 @st.cache_data(ttl=900)
 def veri_cek(kod, period="1y"):
-    """Yahoo Finance'den veri çek — 1 aylık yeterli veri garantisi ile"""
+    """Yahoo Finance'den veri çek — BYF için Bigpara kullanır"""
+    # BYF fonları için özel kaynak
+    if kod in BYF_KODLAR:
+        return byf_veri_cek(kod, period)
+
     try:
         # 1 ay için de yeterli veri çekmek adına min 3mo kullan
         gercek_period = "3mo" if period == "1mo" else period
-        df = yf.Ticker(f"{kod}.IS").history(period=gercek_period)
+        # Önce standart sembolü dene, BYF için alternatifler
+        semboller_deneme = [f"{kod}.IS", f"{kod}F.IS", f"{kod}K.IS"]
+        for s in semboller_deneme:
+            df = yf.Ticker(s).history(period=gercek_period)
+            if not df.empty: break
         if df.empty:
             # BYF için sembol farklı olabilir
             df = yf.Ticker(f"{kod}.BIST").history(period=gercek_period)
@@ -1017,7 +1131,7 @@ with st.spinner(f"📡 {secilenKod} verisi çekiliyor..."):
 
 if hata or df is None:
     st.error(f"⚠️ Veri alınamadı: {hata or 'Bilinmeyen hata'}")
-    st.info("💡 Sembol Yahoo Finance'de desteklenmeyebilir. BYF sembolleri için doğrudan aracı kurum platformunu kullanın.")
+    st.info(f"💡 {secilenKod} için veri alınamadı: {hata}. Bigpara veya Yahoo Finance geçici olarak erişilemiyor olabilir.")
     st.stop()
 
 df = indikatör_hesapla(df)
