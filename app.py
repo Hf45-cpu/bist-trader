@@ -62,6 +62,9 @@ HISSELER={
     "MGROS":{"isim":"Migros","sektor":"Perakende"},
     "PETKM":{"isim":"Petkim","sektor":"Kimya"},
     "KOZAL":{"isim":"Koza Altın","sektor":"Madencilik"},
+    "ISGLK":{"isim":"İş Portföy Altın BYF","sektor":"Altın Fonu"},
+    "GMSTR":{"isim":"QNB Finans Gümüş BYF","sektor":"Gümüş Fonu"},
+    "GLDTR":{"isim":"İstanbul Altın BYF","sektor":"Altın Fonu"},
 }
 
 @st.cache_data(ttl=900)
